@@ -48,10 +48,10 @@ netsh advfirewall firewall add rule name="timeline-8443-lan" dir=in action=allow
 
 ## 配置时间轴
 
-默认配置在 `src/config.js`：
+默认配置在 `src/config.js` 的 `DEFAULT_CONFIG`：
 
 ```js
-export const TIMELINE_CONFIG = {
+const DEFAULT_CONFIG = {
   title: '立体时间轴',
   startYear: 1996,
   endYear: 2026,

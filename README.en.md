@@ -48,10 +48,10 @@ netsh advfirewall firewall add rule name="timeline-8443-lan" dir=in action=allow
 
 ## Configuration
 
-The defaults live in `src/config.js`:
+The defaults live in `DEFAULT_CONFIG` inside `src/config.js`:
 
 ```js
-export const TIMELINE_CONFIG = {
+const DEFAULT_CONFIG = {
   title: '立体时间轴',
   startYear: 1996,
   endYear: 2026,
