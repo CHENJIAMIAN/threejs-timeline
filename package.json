@@ -13,7 +13,9 @@
   },
   "main": "index.html",
   "scripts": {
-    "start": "python -m http.server 8123"
+    "start": "python -m http.server 8123",
+    "smoke": "node scripts/smoke.mjs",
+    "shot": "node scripts/smoke.mjs --out docs/screenshot.png --reset-view --wait 4000"
   },
   "keywords": ["three.js", "tsl", "webgpu", "timeline"],
   "author": "",
