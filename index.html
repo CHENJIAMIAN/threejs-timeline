@@ -6,18 +6,18 @@
 <meta name="description" content="可配置年份范围的 Three.js TSL 立体时间轴，支持 WebGPU / WebGL2。" />
 <title>立体时间轴 · Three.js TSL</title>
 <!-- 内联 SVG favicon：顺手干掉浏览器自动请求 favicon.ico 造成的 404 -->
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='1' x2='1' y2='0'%3E%3Cstop offset='0' stop-color='%233ad9ff'/%3E%3Cstop offset='.55' stop-color='%23a05cff'/%3E%3Cstop offset='1' stop-color='%23ff5ec8'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='%230b0a18'/%3E%3Crect x='11' y='34' width='7' height='18' rx='3' fill='url(%23g)'/%3E%3Crect x='23' y='24' width='7' height='28' rx='3' fill='url(%23g)'/%3E%3Crect x='35' y='16' width='7' height='36' rx='3' fill='url(%23g)'/%3E%3Crect x='47' y='10' width='7' height='42' rx='3' fill='url(%23g)'/%3E%3C/svg%3E" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23f5f5f7'/%3E%3Crect x='11' y='34' width='7' height='18' rx='3' fill='%23a1a1a6'/%3E%3Crect x='23' y='24' width='7' height='28' rx='3' fill='%238e8e93'/%3E%3Crect x='35' y='16' width='7' height='36' rx='3' fill='%23007aff'/%3E%3Crect x='47' y='10' width='7' height='42' rx='3' fill='%230071e3'/%3E%3C/svg%3E" />
 <style>
   :root{
-    --glass-bg: rgba(18, 16, 38, 0.42);
-    --glass-bd: rgba(160, 180, 255, 0.18);
-    --txt: #e9ecff;
-    --txt-dim: #9aa3c7;
-    --accent: #5ee7ff;
-    --accent2: #ff5ec8;
+    --glass-bg: #ffffff;
+    --glass-bd: rgba(0, 0, 0, 0.07);
+    --txt: #1d1d1f;
+    --txt-dim: #6e6e73;
+    --accent: #007aff;
+    --accent2: #0071e3;
   }
   *{ box-sizing: border-box; }
-  html, body{ height:100%; margin:0; background:#04030c; overflow:hidden; }
+  html, body{ height:100%; margin:0; background:#f5f5f7; overflow:hidden; }
   body{
     font-family: "PingFang SC","Microsoft YaHei","Hiragino Sans GB",system-ui,-apple-system,"Segoe UI",sans-serif;
     color: var(--txt);
@@ -26,65 +26,70 @@
   #app{ position:fixed; inset:0; }
   canvas{ display:block; }
 
-  /* ---------- 毛玻璃 UI ---------- */
+  /* ---------- 纯色卡片 UI ---------- */
   .glass{
     background: var(--glass-bg);
     border: 1px solid var(--glass-bd);
     border-radius: 16px;
-    backdrop-filter: blur(18px) saturate(150%);
-    -webkit-backdrop-filter: blur(18px) saturate(150%);
-    box-shadow: 0 8px 40px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.08);
+    box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 8px 24px rgba(0,0,0,.06);
   }
   .panel{ position:absolute; padding:14px 16px; pointer-events:auto; user-select:none; }
+  [hidden]{ display:none !important; }
+  body.no-title #head,
+  body.no-hud #hud,
+  body.no-legend #legend{ display:none; }
 
   #head{ top:22px; left:300px; max-width:min(42vw,520px); }
   #head h1{
     margin:0 0 6px; font-size:26px; font-weight:700; letter-spacing:.06em;
-    background:linear-gradient(92deg,#7af0ff 0%,#a78bfa 42%,#ff7ad9 78%,#ffb06a 100%);
-    -webkit-background-clip:text; background-clip:text; color:transparent;
+    color:var(--txt);
   }
   #head p{ margin:0; font-size:12.5px; line-height:1.6; color:var(--txt-dim); }
   #head code{
     font-family: ui-monospace, Consolas, monospace; font-size:11.5px;
-    background:rgba(120,140,255,.14); border:1px solid rgba(140,160,255,.22);
-    padding:1px 6px; border-radius:6px; color:#bcd0ff;
+    background:rgba(0,0,0,.05); border:1px solid rgba(0,0,0,.06);
+    padding:1px 6px; border-radius:5px; color:#3a3a3c;
   }
 
   #hud{ top:22px; left:24px; width:252px; }
   .row{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:9px; }
   .row:last-child{ margin-bottom:0; }
   .k{ font-size:11.5px; color:var(--txt-dim); letter-spacing:.04em; }
-  .v{ font-size:11.5px; font-variant-numeric:tabular-nums; color:#cfe0ff; }
+  .v{ font-size:11.5px; font-variant-numeric:tabular-nums; color:var(--txt); }
   .tag{
     font-size:10.5px; padding:2px 8px; border-radius:999px; letter-spacing:.06em;
-    border:1px solid rgba(94,231,255,.35); background:rgba(94,231,255,.12); color:#9df1ff;
+    border:1px solid rgba(0,122,255,.22); background:rgba(0,122,255,.08); color:#0066cc;
   }
-  .tag.warn{ border-color:rgba(255,176,106,.4); background:rgba(255,176,106,.12); color:#ffd0a0; }
-  hr.sep{ border:0; border-top:1px solid rgba(150,170,255,.14); margin:11px 0; }
+  .tag.warn{ border-color:rgba(255,149,0,.28); background:rgba(255,149,0,.09); color:#a35b00; }
+  hr.sep{ border:0; border-top:1px solid rgba(0,0,0,.08); margin:11px 0; }
   input[type=range]{
     -webkit-appearance:none; appearance:none; width:124px; height:3px; border-radius:3px;
-    background:linear-gradient(90deg,#5ee7ff,#a78bfa,#ff5ec8); outline:none;
+    background:#c7c7cc; outline:none;
   }
   input[type=range]::-webkit-slider-thumb{
     -webkit-appearance:none; width:13px; height:13px; border-radius:50%;
-    background:#eaf2ff; border:2px solid rgba(120,150,255,.7); cursor:pointer;
-    box-shadow:0 0 10px rgba(120,180,255,.8);
+    background:#ffffff; border:1px solid rgba(0,0,0,.14); cursor:pointer;
+    box-shadow:0 1px 3px rgba(0,0,0,.20);
   }
   .btns{ display:flex; flex-wrap:wrap; gap:7px; margin-top:4px; }
   button{
-    font:inherit; font-size:11.5px; color:#dbe4ff; cursor:pointer;
+    font:inherit; font-size:11.5px; color:var(--txt); cursor:pointer;
     padding:6px 11px; border-radius:10px; letter-spacing:.03em;
-    background:rgba(120,140,255,.13); border:1px solid rgba(150,170,255,.24);
+    background:rgba(255,255,255,.80); border:1px solid rgba(0,0,0,.09);
     transition:.18s;
   }
-  button:hover{ background:rgba(140,170,255,.26); border-color:rgba(160,190,255,.5); }
-  button.on{ background:rgba(94,231,255,.22); border-color:rgba(94,231,255,.6); color:#d6fbff; box-shadow:0 0 16px rgba(94,231,255,.28); }
+  button:hover{ background:rgba(0,0,0,.06); }
+  button.on{ background:rgba(0,122,255,.10); border-color:rgba(0,122,255,.36); color:#0066cc; }
+  #settings-apply:hover{ background:#0071e3; }
 
   #legend{ bottom:24px; left:24px; padding:12px 14px; }
   #legend .bar{
     width:226px; height:8px; border-radius:6px;
-    background:linear-gradient(90deg,#3ad9ff,#4a7bff,#a05cff,#ff5ec8,#ff9a52);
-    box-shadow:0 0 22px rgba(150,120,255,.55);
+    background:#8e8e93;
+  }
+  #legend .bar::after{
+    content:""; display:block; height:100%; border-radius:inherit;
+    background:#007aff; clip-path:polygon(68% 0,100% 0,100% 100%,68% 100%);
   }
   #legend .lb{ display:flex; justify-content:space-between; margin-top:7px; font-size:11px; color:var(--txt-dim); }
 
@@ -95,25 +100,238 @@
     transform:translate(-50%,-118%); transition:opacity .16s; white-space:nowrap; z-index:9;
   }
   #tip .y{ font-size:17px; font-weight:700; letter-spacing:.04em; }
-  #tip .t{ font-size:11.5px; color:#c8d3ff; margin-top:3px; }
+  #tip .t{ font-size:11.5px; color:#3a3a3c; margin-top:3px; }
   #tip .m{ font-size:10.5px; color:var(--txt-dim); margin-top:2px; font-variant-numeric:tabular-nums; }
   #tip .dot{ display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:7px; vertical-align:middle; }
 
   #boot{
     position:absolute; inset:0; z-index:20; display:flex; flex-direction:column;
-    align-items:center; justify-content:center; gap:16px; background:#04030c;
+    align-items:center; justify-content:center; gap:16px; background:#f5f5f7;
     transition:opacity .7s; text-align:center; padding:24px;
   }
   #boot .sp{
     width:34px; height:34px; border-radius:50%;
-    border:2px solid rgba(120,150,255,.22); border-top-color:#5ee7ff;
+    border:2px solid rgba(0,0,0,.08); border-top-color:#007aff;
     animation:spin .85s linear infinite;
   }
   @keyframes spin{ to{ transform:rotate(360deg); } }
   #boot .msg{ font-size:12.5px; color:var(--txt-dim); letter-spacing:.08em; }
   #boot.err .sp{ display:none; }
-  #boot.err .msg{ color:#ff9a9a; max-width:640px; line-height:1.8; }
+  #boot.err .msg{ color:#d70015; max-width:640px; line-height:1.8; }
   #boot.hide{ opacity:0; pointer-events:none; }
+
+  /* ---------- 配置面板 ---------- */
+  #settings-toggle{
+    position:fixed; top:22px; right:24px; z-index:35;
+    padding:9px 16px 9px 34px; border-radius:999px;
+    background:#ffffff; border-color:rgba(0,0,0,.08);
+    box-shadow:0 1px 2px rgba(0,0,0,.04), 0 8px 24px rgba(0,0,0,.08);
+  }
+  #settings-toggle::before{
+    content:""; position:absolute; left:14px; top:50%; width:10px; height:10px;
+    margin-top:-5px; border:1.5px solid #007aff; border-radius:50%;
+  }
+  #settings-toggle::after{
+    content:""; position:absolute; left:18px; top:50%; width:2px; height:2px;
+    margin-top:-1px; border-radius:50%; background:#007aff;
+  }
+  #settings-toggle[aria-expanded="true"]{
+    background:#ffffff; border-color:rgba(0,122,255,.32);
+  }
+
+  #settings-backdrop{
+    position:fixed; inset:0; z-index:30; pointer-events:none; opacity:0;
+    background:rgba(0,0,0,.16); transition:opacity .24s ease;
+  }
+  #settings-backdrop.open{ opacity:1; pointer-events:auto; }
+
+  #settings-panel{
+    position:fixed; z-index:40; top:16px; right:16px; bottom:16px;
+    width:min(650px, calc(100vw - 32px)); display:flex; flex-direction:column;
+    border-radius:20px; overflow:hidden; pointer-events:none; opacity:.98;
+    transform:translateX(calc(100% + 32px));
+    transition:transform .32s cubic-bezier(.2,.78,.2,1), opacity .2s ease;
+    background:#ffffff;
+    border:1px solid rgba(0,0,0,.08);
+    box-shadow:0 12px 48px rgba(0,0,0,.14);
+  }
+  #settings-panel.open{ transform:translateX(0); pointer-events:auto; }
+  .settings-header{
+    display:flex; align-items:flex-start; justify-content:space-between; gap:20px;
+    padding:20px 22px 16px; border-bottom:1px solid rgba(0,0,0,.07);
+  }
+  .settings-header h2{
+    margin:0; font-size:18px; letter-spacing:.08em; font-weight:700;
+    color:var(--txt);
+  }
+  .settings-header p{ margin:7px 0 0; font-size:11.5px; color:var(--txt-dim); }
+  #settings-close{
+    flex:0 0 auto; width:32px; height:32px; padding:0; border-radius:50%;
+    font-size:20px; line-height:1; color:var(--txt-dim);
+  }
+  .settings-toolbar{
+    padding:14px 22px 10px; border-bottom:1px solid rgba(0,0,0,.06);
+  }
+  #settings-search{
+    width:100%; height:38px; padding:0 13px; border-radius:11px;
+    color:var(--txt); background:#f2f2f7;
+    border:1px solid rgba(0,0,0,.07); outline:none;
+    font:inherit; font-size:12px;
+  }
+  #settings-search:focus{ border-color:rgba(0,122,255,.55); box-shadow:0 0 0 3px rgba(0,122,255,.10); }
+  #settings-form{
+    flex:1; overflow:auto; padding:14px 22px 24px; overscroll-behavior:contain;
+    scrollbar-color:rgba(0,0,0,.20) transparent;
+  }
+  .settings-intro{
+    margin:0 0 14px; padding:10px 12px; border-radius:10px;
+    font-size:11.5px; line-height:1.65; color:var(--txt-dim);
+    background:rgba(0,122,255,.05); border:1px solid rgba(0,122,255,.10);
+  }
+  .settings-group{
+    margin:0 0 9px; border:1px solid rgba(0,0,0,.06); border-radius:13px;
+    background:rgba(255,255,255,.72); overflow:hidden;
+  }
+  .settings-group summary{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    padding:12px 14px; cursor:pointer; user-select:none; list-style:none;
+    color:var(--txt); font-size:13px; font-weight:600; letter-spacing:.01em;
+  }
+  .settings-group summary::-webkit-details-marker{ display:none; }
+  .settings-group summary::before{
+    content:"›"; display:inline-block; margin-right:2px; color:var(--txt-dim);
+    font-size:18px; line-height:1; transform:rotate(0deg); transition:transform .16s ease;
+  }
+  .settings-group[open] summary::before{ transform:rotate(90deg); }
+  .settings-group summary span{ flex:1; }
+  .settings-group summary code,
+  .settings-subhead code,
+  .settings-field-label code{
+    font-family:ui-monospace,Consolas,monospace; font-weight:400; color:#8e8e93;
+  }
+  .settings-group summary code{ font-size:10px; }
+  .settings-group-body{ padding:0 14px 13px; }
+  .settings-subgroup{
+    margin:12px 0 0; padding:10px 0 0;
+    border-top:1px solid rgba(0,0,0,.06);
+  }
+  .settings-subgroup:first-child{ margin-top:0; border-top:0; padding-top:0; }
+  .settings-subhead{
+    display:flex; align-items:baseline; justify-content:space-between; gap:10px;
+    margin-bottom:8px; color:#3a3a3c; font-size:12px; font-weight:600;
+  }
+  .settings-subhead code{ font-size:9.5px; }
+  .settings-field{
+    display:grid; grid-template-columns:minmax(130px,.78fr) minmax(0,1.22fr);
+    align-items:center; gap:12px; padding:7px 8px; margin:2px -8px; border-radius:9px;
+  }
+  .settings-field:hover{ background:rgba(0,0,0,.025); }
+  .settings-field.invalid{ background:rgba(255,59,48,.07); box-shadow:inset 0 0 0 1px rgba(255,59,48,.26); }
+  .settings-field-label{ min-width:0; display:flex; flex-direction:column; gap:2px; }
+  .settings-field-name{ color:var(--txt); font-size:12px; }
+  .settings-field-label code{
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:9.5px;
+  }
+  .settings-control{ min-width:0; }
+  #settings-panel input:not([type=checkbox]):not([type=color]),
+  #settings-panel textarea{
+    width:100%; min-height:34px; padding:7px 10px; border-radius:9px;
+    color:var(--txt); background:#ffffff;
+    border:1px solid rgba(0,0,0,.12); outline:none;
+    font:inherit; font-size:11.5px; line-height:1.45;
+  }
+  #settings-panel textarea{
+    resize:vertical; min-height:74px;
+    font-family:ui-monospace,Consolas,monospace; font-size:10.5px;
+  }
+  #settings-panel input:focus,
+  #settings-panel textarea:focus{
+    border-color:rgba(0,122,255,.55); box-shadow:0 0 0 3px rgba(0,122,255,.10);
+  }
+  #settings-panel input[type=checkbox]{
+    width:17px; height:17px; margin:0; accent-color:#007aff; cursor:pointer;
+  }
+  .settings-color{ display:flex; align-items:center; gap:7px; }
+  .settings-color input[type=color]{
+    flex:0 0 auto; width:34px; height:34px; padding:2px; cursor:pointer;
+    border:1px solid rgba(0,0,0,.12); border-radius:9px; background:#ffffff;
+  }
+  .settings-year-editor{
+    margin:10px 0 12px; padding:12px; border-radius:12px;
+    background:rgba(0,0,0,.025); border:1px solid rgba(0,0,0,.07);
+  }
+  .settings-year-editor.invalid{
+    border-color:rgba(255,59,48,.45); box-shadow:inset 0 0 0 1px rgba(255,59,48,.16);
+  }
+  .settings-year-heading{
+    display:flex; align-items:flex-start; justify-content:space-between; gap:12px;
+    margin-bottom:11px;
+  }
+  .settings-year-heading strong{
+    display:block; color:var(--txt); font-size:12.5px; font-weight:600;
+  }
+  .settings-year-heading{ flex-wrap:wrap; }
+  .settings-year-heading > div{ flex:1 1 100%; }
+  .settings-year-heading code{
+    display:block; margin-top:2px; font-family:ui-monospace,Consolas,monospace;
+    color:#8e8e93; font-size:9.5px;
+  }
+  .settings-year-heading p{
+    margin:6px 0 0; color:var(--txt-dim); font-size:10.5px; line-height:1.55;
+  }
+  .settings-mini-btn{
+    flex:0 0 auto; padding:5px 9px; border-radius:8px; font-size:10.5px;
+    color:var(--txt); border-color:rgba(0,0,0,.10); background:rgba(255,255,255,.80);
+  }
+  .settings-mini-btn.accent{
+    color:#0066cc; border-color:rgba(0,122,255,.26); background:rgba(0,122,255,.08);
+  }
+  .settings-year-rows{
+    display:flex; flex-direction:column; gap:5px;
+    max-height:340px; overflow:auto; padding-right:2px;
+  }
+  .settings-year-row{
+    display:grid; grid-template-columns:73px minmax(0,1fr) 82px 28px;
+    gap:6px; align-items:end;
+  }
+  .settings-year-row.invalid{
+    padding:5px; margin:-5px; border-radius:8px;
+    background:rgba(255,59,48,.07); box-shadow:inset 0 0 0 1px rgba(255,59,48,.24);
+  }
+  .settings-year-cell{ display:flex; flex-direction:column; gap:3px; min-width:0; }
+  .settings-year-cell span{ font-size:9px; color:var(--txt-dim); }
+  #settings-panel .settings-year-cell input{
+    min-height:29px; padding:4px 7px; font-size:10.5px; border-radius:7px;
+  }
+  #settings-panel .settings-year-cell.year input,
+  #settings-panel .settings-year-cell.heat input{
+    font-variant-numeric:tabular-nums;
+  }
+  .settings-year-remove{
+    width:28px; height:29px; padding:0; border-radius:7px; font-size:15px;
+    color:#d70015; border-color:rgba(255,59,48,.20); background:rgba(255,59,48,.06);
+  }
+  .settings-year-actions{ display:flex; margin-top:9px; }
+  .settings-year-actions[hidden]{ display:none; }
+  .settings-year-json{ margin-top:6px; }
+  .settings-year-json .settings-field{ grid-template-columns:1fr; }
+  .settings-year-json .settings-field-label{ display:none; }
+  .settings-footer{
+    display:flex; align-items:center; justify-content:space-between; gap:14px;
+    padding:14px 22px 18px; border-top:1px solid rgba(0,0,0,.07);
+    background:rgba(248,248,250,.88);
+  }
+  #settings-status{ min-width:0; color:var(--txt-dim); font-size:10.5px; line-height:1.4; }
+  #settings-status[data-kind="dirty"]{ color:#a35b00; }
+  #settings-status[data-kind="ok"]{ color:#1d7b3c; }
+  #settings-status[data-kind="error"]{ color:#d70015; }
+  .settings-actions{ display:flex; flex:0 0 auto; gap:8px; }
+  #settings-apply{
+    color:#ffffff; border-color:transparent;
+    background:#007aff;
+  }
+  #settings-reset{ color:var(--txt-dim); }
+
   @media (max-width:1100px){
     #head{ left:24px; top:auto; bottom:96px; }
   }
@@ -121,41 +339,81 @@
     #hud{ display:none; }
     #legend{ transform:scale(.85); transform-origin:left bottom; }
     #head h1{ font-size:19px; }
+    #settings-toggle{ top:14px; right:14px; }
+    #settings-panel{
+      top:0; right:0; bottom:0; width:100vw; border-radius:0;
+    }
+    .settings-header{ padding:18px 16px 14px; }
+    .settings-toolbar{ padding:12px 16px 10px; }
+    #settings-form{ padding:12px 16px 22px; }
+    .settings-field{ grid-template-columns:1fr; gap:6px; }
+    .settings-year-editor{ margin:8px 0; padding:10px 8px; }
+    .settings-year-heading{ flex-direction:column; }
+    .settings-year-row{ grid-template-columns:64px minmax(0,1fr) 28px; gap:5px; }
+    .settings-year-cell.year{ grid-column:1; grid-row:1; }
+    .settings-year-cell.heat{ grid-column:2; grid-row:1; }
+    .settings-year-cell.tag{ grid-column:1 / 3; grid-row:2; }
+    .settings-year-remove{ grid-column:3; grid-row:1 / 3; height:100%; }
+    .settings-footer{ align-items:stretch; flex-direction:column; padding:12px 16px 16px; }
+    .settings-actions{ justify-content:flex-end; }
   }
 </style>
 </head>
 <body>
 <div id="app"></div>
 
+<button id="settings-toggle" type="button" aria-expanded="false" aria-controls="settings-panel">配置</button>
+<div id="settings-backdrop"></div>
+<aside id="settings-panel" class="glass" aria-hidden="true" aria-labelledby="settings-title">
+  <header class="settings-header">
+    <div>
+      <h2 id="settings-title">场景配置</h2>
+      <p id="settings-summary">当前使用默认配置</p>
+    </div>
+    <button id="settings-close" type="button" aria-label="关闭配置面板">×</button>
+  </header>
+  <div class="settings-toolbar">
+    <input id="settings-search" type="search" placeholder="搜索配置项，例如 bloom、颜色、相机…" autocomplete="off" />
+  </div>
+  <div id="settings-form"></div>
+  <footer class="settings-footer">
+    <span id="settings-status">配置保存在当前浏览器</span>
+    <div class="settings-actions">
+      <button id="settings-reset" type="button">恢复默认</button>
+      <button id="settings-apply" type="button">应用并重载</button>
+    </div>
+  </footer>
+</aside>
+
 <div id="head" class="panel glass">
   <h1 id="app-title">立体时间轴</h1>
-  <p>
+  <p id="app-intro">
     Three.js <code>r186</code> · <code>WebGPURenderer</code> · 全部效果由 <code>TSL</code> 节点编写<br />
-    雾 + 毛玻璃立柱 + 体积光晕 + 极光天幕 ｜ 拖拽旋转 · 滚轮缩放 · 悬停查看年份<br />全场景实例化（5 个 InstancedMesh）· 自适应分辨率 · <code>?start=2000&amp;end=2024</code> 可改范围
+    实心立柱 + 纯色天幕 ｜ 拖拽旋转 · 滚轮缩放 · 悬停查看年份<br />全场景实例化（5 个 InstancedMesh）· 自适应分辨率 · 点击右上角“配置”调整场景
   </p>
 </div>
 
 <div id="hud" class="panel glass">
-  <div class="row"><span class="k">渲染后端</span><span class="tag" id="s-backend">初始化中…</span></div>
-  <div class="row"><span class="k">帧率</span><span class="v" id="s-fps">-- fps</span></div>
-  <div class="row"><span class="k">渲染倍率</span><span class="v" id="s-dpr">--</span></div>
-  <div class="row"><span class="k">立柱 / 年份</span><span class="v" id="s-count">--</span></div>
-  <div class="row bench"><span class="k">GPU 帧时间</span><span class="v" id="s-gpu">--</span></div>
-  <div class="row bench"><span class="k">CPU 提交</span><span class="v" id="s-cpu">--</span></div>
-  <div class="row bench"><span class="k">Draw call</span><span class="v" id="s-calls">--</span></div>
-  <div class="row bench"><span class="k">着色器程序</span><span class="v" id="s-progs">--</span></div>
-  <div class="row bench"><span class="k">三角面</span><span class="v" id="s-tris">--</span></div>
+  <div class="row"><span class="k" data-ui-label="backend">渲染后端</span><span class="tag" id="s-backend">初始化中…</span></div>
+  <div class="row"><span class="k" data-ui-label="fps">帧率</span><span class="v" id="s-fps">-- fps</span></div>
+  <div class="row"><span class="k" data-ui-label="dpr">渲染倍率</span><span class="v" id="s-dpr">--</span></div>
+  <div class="row"><span class="k" data-ui-label="columns">立柱 / 年份</span><span class="v" id="s-count">--</span></div>
+  <div class="row bench"><span class="k" data-ui-label="gpu">GPU 帧时间</span><span class="v" id="s-gpu">--</span></div>
+  <div class="row bench"><span class="k" data-ui-label="cpu">CPU 提交</span><span class="v" id="s-cpu">--</span></div>
+  <div class="row bench"><span class="k" data-ui-label="drawCalls">Draw call</span><span class="v" id="s-calls">--</span></div>
+  <div class="row bench"><span class="k" data-ui-label="programs">着色器程序</span><span class="v" id="s-progs">--</span></div>
+  <div class="row bench"><span class="k" data-ui-label="triangles">三角面</span><span class="v" id="s-tris">--</span></div>
   <hr class="sep" />
   <div class="row"><span class="k">雾浓度</span><input id="p-fog" type="range" min="0" max="200" value="100" /></div>
   <div class="row"><span class="k">曝光</span><input id="p-exp" type="range" min="40" max="220" value="100" /></div>
-  <div class="row"><span class="k">毛玻璃粗糙度</span><input id="p-rough" type="range" min="0" max="200" value="100" /></div>
+  <div class="row"><span class="k">立柱表面粗糙度</span><input id="p-rough" type="range" min="0" max="200" value="100" /></div>
   <hr class="sep" />
   <div class="btns">
-    <button id="b-rot" class="on">自动旋转</button>
-    <button id="b-cruise">巡游</button>
-    <button id="b-labels" class="on">年份牌</button>
-    <button id="b-quality">画质：自动</button>
-    <button id="b-reset">重置视角</button>
+    <button id="b-rot" type="button" class="on">自动旋转</button>
+    <button id="b-cruise" type="button">巡游</button>
+    <button id="b-labels" type="button" class="on">年份牌</button>
+    <button id="b-quality" type="button">画质：自动</button>
+    <button id="b-reset" type="button">重置视角</button>
   </div>
 </div>
 

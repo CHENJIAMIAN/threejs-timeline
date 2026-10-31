@@ -1,23 +1,24 @@
 /**
- * 空气里的浮尘 / 光点：一次 InstancedMesh 画 900 颗，
- * 位置与颜色完全在 TSL 里用 instanceIndex 派生（不需要逐实例属性，也不需要每帧改 CPU 数据）。
+ * 空气里的浮尘 / 光点。数量、分布、颜色、漂移速度、远近淡出都可配置。
  */
 import * as THREE from 'three/webgpu';
 import {
-  Fn, vec3, vec4, float, mix, color, time, positionLocal, instanceIndex, hash,
-  sin, cos, smoothstep, uniform, dot, normalize, cameraPosition, positionWorld
+  Fn, vec3, float, color, time, instanceIndex, hash,
+  sin, cos, step, uniform, cameraPosition, positionWorld
 } from 'three/tsl';
+import { TIMELINE_CONFIG } from './config.js';
 
-export function createDust(scene, count = 900, opts = {}) {
-  const {
-    spreadX = 190,
-    spreadY = 34,
-    spreadZ = 90,
-    zOffset = -30,
-    size = 0.075
-  } = opts;
+export function createDust(scene, count, opts = {}) {
+  const base = TIMELINE_CONFIG.dust;
+  const cfg = {
+    ...base,
+    ...opts,
+    colors: { ...base.colors, ...opts.colors }
+  };
+  const particleCount = Number.isFinite(count) ? Math.max(0, Math.trunc(count)) : cfg.count;
+  if (particleCount === 0) return { mesh: null, speed: uniform(cfg.speed) };
 
-  const geo = new THREE.OctahedronGeometry(size, 0);
+  const geo = new THREE.OctahedronGeometry(cfg.size, 0);
   const mat = new THREE.MeshBasicNodeMaterial({
     transparent: true,
     depthWrite: false,
@@ -26,14 +27,14 @@ export function createDust(scene, count = 900, opts = {}) {
     toneMapped: false
   });
 
-  const speed = uniform(1.0);
-  const tintA = color(0x6fe8ff);
-  const tintB = color(0xff6ad9);
+  const speed = uniform(cfg.speed);
 
-  // 每颗粒子的稳定随机数：hash(instanceIndex + k)
+  // 粉尘按随机值分成两色，不做颜色混合。
   mat.colorNode = Fn(() => {
     const r = hash(instanceIndex.add(11.7));
-    return mix(tintA, tintB, r).mul(1.9);
+    return color(cfg.colors.a)
+      .mix(color(cfg.colors.b), step(0.5, r))
+      .mul(cfg.tintMultiplier);
   })();
 
   mat.positionNode = Fn(() => {
@@ -42,27 +43,24 @@ export function createDust(scene, count = 900, opts = {}) {
     const r3 = hash(instanceIndex.add(9.7));
     const ph = hash(instanceIndex.add(17.3)).mul(6.283);
 
-    // 静态分布
-    const baseX = r1.sub(0.5).mul(spreadX);
-    const baseY = r2.mul(spreadY).add(1.0);
-    const baseZ = r3.sub(0.5).mul(spreadZ).add(zOffset);
+    const baseX = r1.sub(0.5).mul(cfg.spreadX);
+    const baseY = r2.mul(cfg.spreadY).add(1.0);
+    const baseZ = r3.sub(0.5).mul(cfg.spreadZ).add(cfg.zOffset);
 
-    // 缓慢漂浮
-    const t = time.mul(0.22).mul(speed);
-    const dy = sin(t.add(ph)).mul(1.7);
-    const dx = cos(t.mul(0.7).add(ph)).mul(1.2);
+    const t = time.mul(cfg.driftSpeed).mul(speed);
+    const dy = sin(t.add(ph)).mul(cfg.driftY);
+    const dx = cos(t.mul(0.7).add(ph)).mul(cfg.driftX);
 
     return vec3(baseX.add(dx), baseY.add(dy), baseZ);
   })();
 
-  // 越远越淡（配合雾，光点在纵深里层层叠叠）
   mat.opacityNode = Fn(() => {
     const dist = positionWorld.sub(cameraPosition).length();
-    const near = float(1.0).sub(smoothstep(float(60.0), float(230.0), dist));
-    return near.mul(0.55).add(0.06);
+    const near = step(dist, float(cfg.fadeFar));
+    return near.mul(cfg.opacity).add(cfg.minOpacity);
   })();
 
-  const mesh = new THREE.InstancedMesh(geo, mat, count);
+  const mesh = new THREE.InstancedMesh(geo, mat, particleCount);
   mesh.frustumCulled = false;
   mesh.name = 'dust';
   scene.add(mesh);
