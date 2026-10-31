@@ -9,26 +9,15 @@ import {
 import { TIMELINE_CONFIG } from './config.js';
 import { toLinearRGB } from './color.js';
 
-export function createSky(options = {}) {
-  const base = TIMELINE_CONFIG.sky;
-  const cfg = {
-    ...base,
-    ...options,
-    colors: { ...base.colors, ...options.colors },
-    shader: { ...base.shader, ...options.shader }
-  };
-  const { radius, intensity, colors, shader } = cfg;
-
-  const skyIntensity = uniform(intensity);
-
-  const material = new THREE.MeshBasicNodeMaterial({
-    side: THREE.BackSide,
-    depthWrite: false,
-    fog: false,
-    toneMapped: true
-  });
-
-  material.colorNode = Fn(() => {
+/**
+ * 生成天幕颜色节点。
+ *
+ * 三种颜色走 uniform 而不是编译期常量：配置面板改色时只需改 uniform 的值，
+ * 不必重建材质、不必重编译 shader（重建节点在 WebGL2 后端上不可靠，实测不生效）。
+ */
+export function buildSkyColorNode(cfg, base, skyIntensity, colorUniforms) {
+  const { shader } = cfg;
+  return Fn(() => {
     const dir = normalize(positionLocal);
     const h = dir.y.mul(0.5).add(0.5);
 
@@ -37,24 +26,46 @@ export function createSky(options = {}) {
     const middle = step(float(shader.midStop), h)
       .mul(step(h, float(shader.topStop)));
     const top = step(float(shader.topStop), h);
-    // 颜色统一走 color.js：解析成线性分量，避免 NaN 与 sRGB/线性混用。
-    const [br, bg, bb] = toLinearRGB(colors.bottom, base.colors.bottom);
-    const [mr, mg, mb] = toLinearRGB(colors.mid, base.colors.mid);
-    const [tr, tg, tb] = toLinearRGB(colors.top, base.colors.top);
-    const col = vec3(
-      float(br).mul(bottom).add(float(mr).mul(middle)).add(float(tr).mul(top)),
-      float(bg).mul(bottom).add(float(mg).mul(middle)).add(float(tg).mul(top)),
-      float(bb).mul(bottom).add(float(mb).mul(middle)).add(float(tb).mul(top))
-    );
+
+    const col = colorUniforms.bottom.mul(bottom)
+      .add(colorUniforms.mid.mul(middle))
+      .add(colorUniforms.top.mul(top));
 
     return vec4(col.mul(skyIntensity), 1.0);
   })();
+}
+
+export function createSky(options = {}) {
+  const base = TIMELINE_CONFIG.sky;
+  const cfg = {
+    ...base,
+    ...options,
+    colors: { ...base.colors, ...options.colors },
+    shader: { ...base.shader, ...options.shader }
+  };
+  const { radius, intensity } = cfg;
+
+  const skyIntensity = uniform(intensity);
+  const colorUniforms = {
+    bottom: uniform(new THREE.Vector3(...toLinearRGB(cfg.colors.bottom))),
+    mid: uniform(new THREE.Vector3(...toLinearRGB(cfg.colors.mid))),
+    top: uniform(new THREE.Vector3(...toLinearRGB(cfg.colors.top)))
+  };
+
+  const material = new THREE.MeshBasicNodeMaterial({
+    side: THREE.BackSide,
+    depthWrite: false,
+    fog: false,
+    toneMapped: true
+  });
+
+  material.colorNode = buildSkyColorNode(cfg, base, skyIntensity, colorUniforms);
 
   const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 64, 40), material);
   mesh.frustumCulled = false;
   mesh.name = 'sky';
 
-  return { mesh, skyIntensity, material };
+  return { mesh, skyIntensity, colorUniforms, material, cfg, base };
 }
 
 /** 用天幕本身烘一张 PMREM 环境贴图，失败时退回纯灯光照明。 */

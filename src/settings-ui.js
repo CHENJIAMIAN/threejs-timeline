@@ -179,6 +179,53 @@ export function initSettingsUI() {
     status.dataset.kind = kind;
   };
 
+  // 实时预览的反馈：能改的当场生效，改不了的明确告诉用户要点应用。
+  window.addEventListener('timeline:live', (event) => {
+    const { path, applied } = event.detail || {};
+    if (!path) return;
+    setStatus(
+      applied
+        ? '已实时预览（还没保存）'
+        : `${path} 需要点「应用并重载」后生效`,
+      'dirty'
+    );
+  });
+
+  // 移动端：面板是底部抽屉，拖手柄能改高度，让上半屏始终能看到场景。
+  const grip = document.getElementById('settings-grip');
+  if (grip) {
+    let dragging = false;
+    let startY = 0;
+    let startHeight = 0;
+    const isSheet = () => window.innerWidth <= 820;
+
+    grip.addEventListener('pointerdown', (event) => {
+      if (!isSheet()) return;
+      dragging = true;
+      startY = event.clientY;
+      startHeight = panel.getBoundingClientRect().height;
+      grip.setPointerCapture?.(event.pointerId);
+      panel.classList.add('dragging');
+    });
+    grip.addEventListener('pointermove', (event) => {
+      if (!dragging) return;
+      const delta = startY - event.clientY;
+      const next = Math.min(
+        window.innerHeight * 0.88,
+        Math.max(window.innerHeight * 0.3, startHeight + delta)
+      );
+      panel.style.setProperty('--settings-sheet-h', `${Math.round(next)}px`);
+    });
+    const endDrag = (event) => {
+      if (!dragging) return;
+      dragging = false;
+      grip.releasePointerCapture?.(event.pointerId);
+      panel.classList.remove('dragging');
+    };
+    grip.addEventListener('pointerup', endDrag);
+    grip.addEventListener('pointercancel', endDrag);
+  }
+
   form.addEventListener('click', (event) => {
     const button = event.target.closest('button[data-action]');
     if (!button) return;
@@ -238,7 +285,8 @@ export function initSettingsUI() {
     panel.setAttribute('aria-hidden', String(!open));
     document.body.classList.toggle('settings-open', open);
     if (open) {
-      requestAnimationFrame(() => search.focus());
+      // 移动端自动聚焦会立刻弹键盘，把上半屏场景一起挡住，所以只在桌面端聚焦。
+      if (window.innerWidth > 820) requestAnimationFrame(() => search.focus());
     } else {
       toggle.focus();
     }
@@ -384,7 +432,7 @@ function buildForm(form, storedView) {
 
   const intro = document.createElement('p');
   intro.className = 'settings-intro';
-  intro.textContent = '配置保存在当前浏览器，不会写入 URL。修改后点击“应用并重载”才会生效。';
+  intro.textContent = '拖滑杆或选颜色会立刻在场景里预览；标了「需应用」的项要点「应用并重载」才生效。配置存在当前浏览器，不写入 URL。';
   form.appendChild(intro);
 
   const keys = [
@@ -752,16 +800,53 @@ function createField(key, value, path, section, forcedKind = '') {
     input.type = 'checkbox';
     input.id = id;
     input.checked = Boolean(value);
+    input.addEventListener('change', () => emitLive(path, input.checked));
     control.appendChild(input);
     read = () => input.checked;
   } else if (kind === 'number') {
+    const step = inferStep(path);
+    const range = inferRange(value, step, path);
+    const wrap = document.createElement('div');
+    wrap.className = 'settings-number';
+
+    // 滑杆负责「拖」，数字框负责「准」，两边双向同步。
+    const slider = document.createElement('input');
+    slider.type = 'range';
+    slider.className = 'settings-range';
+    slider.min = String(range.min);
+    slider.max = String(range.max);
+    slider.step = String(range.step);
+    slider.value = String(value);
+    slider.id = `${id}-range`;
+    slider.setAttribute('aria-label', `${path} 滑杆`);
+
     const input = document.createElement('input');
     input.type = 'number';
     input.id = id;
-    input.step = inferStep(path);
+    input.step = step;
     input.value = String(value);
     input.inputMode = 'decimal';
-    control.appendChild(input);
+
+    slider.addEventListener('input', () => {
+      input.value = slider.value;
+      emitLive(path, Number(slider.value));
+    });
+    input.addEventListener('input', () => {
+      const number = Number(input.value);
+      if (!Number.isFinite(number)) return;
+      // 手输值超出滑杆窗口时把范围撑开，别让滑杆位置失真。
+      if (number < Number(slider.min) || number > Number(slider.max)) {
+        const grown = inferRange(number, step, path);
+        slider.min = String(Math.min(Number(slider.min), grown.min));
+        slider.max = String(Math.max(Number(slider.max), grown.max));
+        slider.step = String(grown.step);
+      }
+      slider.value = String(number);
+      emitLive(path, number);
+    });
+
+    wrap.append(slider, input);
+    control.appendChild(wrap);
     read = () => {
       if (input.value.trim() === '') throw new Error('请填写数字');
       const number = Number(input.value);
@@ -786,9 +871,13 @@ function createField(key, value, path, section, forcedKind = '') {
     picker.addEventListener('input', () => {
       text.value = picker.value;
       text.dispatchEvent(new Event('input', { bubbles: true }));
+      emitLive(path, picker.value);
     });
     text.addEventListener('input', () => {
-      if (COLOR_RE.test(text.value)) picker.value = normalizeHex(text.value);
+      if (COLOR_RE.test(text.value)) {
+        picker.value = normalizeHex(text.value);
+        emitLive(path, text.value);
+      }
     });
 
     wrap.append(text, picker);
@@ -922,6 +1011,34 @@ function friendlyKey(key) {
 
 function inferStep(path) {
   return /(?:Year|Frames?|Cols|rowsPerCol|octaves|Octaves|segments)$/i.test(path) ? '1' : 'any';
+}
+
+/**
+ * 滑杆范围启发式：围绕当前值给一个能拖动的窗口。
+ * 配置里没有 min/max 元数据，硬编码每个字段不现实，这里用「量级 + 符号」推断，
+ * 数字输入框超出范围时会自动把滑杆范围撑开。
+ */
+function inferRange(value, step, path = '') {
+  const number = Number(value);
+  const magnitude = Math.abs(Number.isFinite(number) ? number : 0);
+  const integerField = step === '1';
+  let span = Math.max(magnitude * 2, integerField ? 10 : 1);
+  // 比例/强度类参数通常落在 0..2，给一个够用的默认窗口。
+  if (!integerField && magnitude <= 1) span = 2;
+  const min = number < 0 ? -span : 0;
+  const max = number < 0 ? 0 : span;
+  const sliderStep = integerField
+    ? 1
+    : Math.max(Math.min(span / 200, 0.01), 0.001);
+  return { min, max, step: sliderStep, path };
+}
+
+/** 把改动推给场景做实时预览；主程序没接就静默跳过。 */
+function emitLive(path, value) {
+  if (typeof window === 'undefined') return;
+  const live = window.timeline?.live;
+  const applied = typeof live === 'function' ? Boolean(live(path, value)) : false;
+  window.dispatchEvent(new CustomEvent('timeline:live', { detail: { path, value, applied } }));
 }
 
 function normalizeHex(value) {

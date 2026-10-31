@@ -74,6 +74,9 @@ The configuration is split by responsibility:
 Click **Settings** in the top-right corner. The panel generates its form automatically from `src/config.js`, so new config fields do not require hand-written controls.
 
 - Supports numbers, toggles, colors, text, JSON arrays, and JSON objects.
+- Numeric fields are a **slider plus input box**: drag the slider to preview, type in the box for an exact value. Color fields open the system picker on tap.
+- Dragging a slider or picking a color **updates the live scene immediately** (exposure, fog, FOV, sky colors, auto-rotation, and more). Fields that cannot be applied live tell you at the bottom of the panel to use **Apply and Reload**.
+- On mobile the panel is a bottom sheet: it covers the lower half by default so the scene stays visible above it, and the handle on top can be dragged to resize it.
 - The search box filters by config path or friendly label.
 - **Timeline data → Per-year content** shows one row per year with editable year, event text, and heat, plus add/delete controls.
 - **Edit as JSON** accepts the whole `timeline.events` object; switching back expands it into per-year rows.

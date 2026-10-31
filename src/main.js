@@ -27,7 +27,7 @@ import { createPillars } from './pillars.js';
 import { createDust } from './dust.js';
 import { createRenderPipeline } from './postfx.js';
 import { initSettingsUI } from './settings-ui.js';
-import { toColor } from './color.js';
+import { toColor, toLinearRGB } from './color.js';
 
 const bootEl = document.getElementById('boot');
 const bootMsg = document.getElementById('boot-msg');
@@ -531,7 +531,53 @@ async function init() {
   window.timeline = {
     config: TIMELINE_CONFIG,
     renderer, scene, camera, controls, sky, pillars, dust, postfx, renderPipeline,
-    state, quality, timer, applyQuality
+    state, quality, timer, applyQuality,
+    /**
+     * 配置面板的实时预览通道：能在当前场景里直接改的参数就立刻生效，
+     * 改不了的返回 false，由面板提示「应用并重载」。
+     * 只处理「改属性/换节点」这类便宜操作，不重建几何。
+     */
+    live(path, value) {
+      if (typeof path !== 'string') return false;
+
+      if (path === 'scene.exposure') {
+        renderer.toneMappingExposure = Number(value);
+        return true;
+      }
+      if (path === 'scene.fog.density') {
+        scene.fog.density = Number(value);
+        return true;
+      }
+      if (path === 'scene.fog.color') {
+        scene.fog.color.copy(toColor(String(value)));
+        return true;
+      }
+      if (path === 'camera.fov') {
+        camera.fov = Number(value);
+        camera.updateProjectionMatrix();
+        return true;
+      }
+      if (path === 'camera.autoRotate.enabled') {
+        setAutoRotate(Boolean(value));
+        return true;
+      }
+      if (path === 'sky.intensity' && sky) {
+        sky.skyIntensity.value = Number(value);
+        return true;
+      }
+      if (path.startsWith('sky.colors.') && sky) {
+        const key = path.slice('sky.colors.'.length);
+        const target = sky.colorUniforms?.[key];
+        if (!target) return false;
+        const [r, g, b] = toLinearRGB(String(value), sky.base.colors[key]);
+        target.value.set(r, g, b);
+        sky.cfg = { ...sky.cfg, colors: { ...sky.cfg.colors, [key]: String(value) } };
+        // 天幕底色同时决定兜底背景色，避免关掉天幕时两处不一致。
+        if (key === 'bottom') scene.background = toColor(String(value));
+        return true;
+      }
+      return false;
+    }
   };
 }
 
